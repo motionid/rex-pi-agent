@@ -8,7 +8,7 @@ import * as subagentsModule from "../pi-extension/subagents/index.ts";
 const tempDirectories: string[] = [];
 
 function makeTempDirectory(): string {
-  const directory = mkdtempSync(join(tmpdir(), "cmuxagent-setup-"));
+  const directory = mkdtempSync(join(tmpdir(), "rex-pi-agent-setup-"));
   tempDirectories.push(directory);
   return directory;
 }
@@ -29,7 +29,7 @@ const selections = {
   worker: "provider/worker",
 };
 
-test("global setup writes the injected home cmuxagent config", () => {
+test("global setup writes the injected home rex-pi-agent config", () => {
   const root = makeTempDirectory();
   const homeDirectory = join(root, "home");
   const result = saveModelSetup({
@@ -39,7 +39,7 @@ test("global setup writes the injected home cmuxagent config", () => {
     cwd: join(root, "project"),
     trustedProject: false,
   });
-  const configPath = join(homeDirectory, ".pi", "cmuxagent", "config.json");
+  const configPath = join(homeDirectory, ".pi", "rex-pi-agent", "config.json");
 
   assert.deepEqual(result, { ok: true, path: configPath });
   assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), {
@@ -47,7 +47,7 @@ test("global setup writes the injected home cmuxagent config", () => {
   });
 });
 
-test("trusted project setup writes only the project cmuxagent config", () => {
+test("trusted project setup writes only the project rex-pi-agent config", () => {
   const root = makeTempDirectory();
   const cwd = join(root, "project");
   const homeDirectory = join(root, "home");
@@ -58,11 +58,11 @@ test("trusted project setup writes only the project cmuxagent config", () => {
     cwd,
     trustedProject: true,
   });
-  const projectPath = join(cwd, ".pi", "cmuxagent", "config.json");
+  const projectPath = join(cwd, ".pi", "rex-pi-agent", "config.json");
 
   assert.deepEqual(result, { ok: true, path: projectPath });
   assert.equal(existsSync(projectPath), true);
-  assert.equal(existsSync(join(homeDirectory, ".pi", "cmuxagent", "config.json")), false);
+  assert.equal(existsSync(join(homeDirectory, ".pi", "rex-pi-agent", "config.json")), false);
 });
 
 test("untrusted project setup refuses without writing", () => {
@@ -76,14 +76,14 @@ test("untrusted project setup refuses without writing", () => {
     cwd,
     trustedProject: false,
   }), { ok: false, reason: "untrusted-project" });
-  assert.equal(existsSync(join(cwd, ".pi", "cmuxagent", "config.json")), false);
+  assert.equal(existsSync(join(cwd, ".pi", "rex-pi-agent", "config.json")), false);
 });
 
 test("inheritance removes one override and preserves unrelated valid overrides", () => {
   const root = makeTempDirectory();
   const homeDirectory = join(root, "home");
-  const configPath = join(homeDirectory, ".pi", "cmuxagent", "config.json");
-  mkdirSync(join(homeDirectory, ".pi", "cmuxagent"), { recursive: true });
+  const configPath = join(homeDirectory, ".pi", "rex-pi-agent", "config.json");
+  mkdirSync(join(homeDirectory, ".pi", "rex-pi-agent"), { recursive: true });
   writeFileSync(configPath, JSON.stringify({
     models: {
       scout: "provider/old-scout",
@@ -115,8 +115,8 @@ test("inheritance removes one override and preserves unrelated valid overrides",
 test("cancelled setup leaves an existing config unchanged", () => {
   const root = makeTempDirectory();
   const homeDirectory = join(root, "home");
-  const configPath = join(homeDirectory, ".pi", "cmuxagent", "config.json");
-  mkdirSync(join(homeDirectory, ".pi", "cmuxagent"), { recursive: true });
+  const configPath = join(homeDirectory, ".pi", "rex-pi-agent", "config.json");
+  mkdirSync(join(homeDirectory, ".pi", "rex-pi-agent"), { recursive: true });
   const original = `${JSON.stringify({ models: { scout: "provider/original" } }, null, 2)}\n`;
   writeFileSync(configPath, original);
 

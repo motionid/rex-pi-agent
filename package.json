@@ -1,7 +1,7 @@
 {
-  "name": "cmuxagent",
-  "version": "3.7.2",
-  "description": "Interactive subagents for Pi running in visible cmux surfaces or Rex panes",
+  "name": "rex-pi-agent",
+  "version": "4.0.0",
+  "description": "Interactive subagents for Pi, each running in its own visible Rex pane",
   "keywords": [
     "pi-package"
   ],
@@ -10,7 +10,7 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/motionid/cmuxagent.git"
+    "url": "git+https://github.com/motionid/rex-pi-agent.git"
   },
   "type": "module",
   "scripts": {

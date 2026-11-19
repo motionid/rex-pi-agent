@@ -30,12 +30,11 @@ import {
   summarizeSessionStats,
 } from "../pi-extension/subagents/session.ts";
 
-import { shellEscape } from "../pi-extension/subagents/cmux.ts";
-import * as cmuxSurface from "../pi-extension/subagents/cmux.ts";
+import { shellEscape } from "../pi-extension/subagents/rex.ts";
 
-it("provides a cmux-only surface module", () => {
+it("provides the Rex terminal module", () => {
   assert.equal(
-    existsSync(join(process.cwd(), "pi-extension", "subagents", "cmux.ts")),
+    existsSync(join(process.cwd(), "pi-extension", "subagents", "rex.ts")),
     true,
   );
 });
@@ -64,7 +63,7 @@ import {
   runningChildrenCount,
 } from "../pi-extension/subagents/subagent-done.ts";
 import subagentDoneExtension from "../pi-extension/subagents/subagent-done.ts";
-import { __pollForExitTest__ } from "../pi-extension/subagents/cmux.ts";
+import { __pollForExitTest__ } from "../pi-extension/subagents/rex.ts";
 
 // --- Helpers ---
 
@@ -1755,7 +1754,7 @@ describe("subagent-done.ts", () => {
   });
 });
 
-describe("cmux.ts interpretExitSidecar", () => {
+describe("rex.ts interpretExitSidecar", () => {
   const { interpretExitSidecar } = __pollForExitTest__;
 
   it("no longer decodes ping payloads (ask_question keeps the session open instead)", () => {
@@ -2667,264 +2666,26 @@ describe("subagent display helpers", () => {
   });
 });
 
-describe("cmux.ts", () => {
-  it("wires the extension and package metadata to cmux only", () => {
-    const indexSource = readFileSync(join(process.cwd(), "pi-extension", "subagents", "index.ts"), "utf8");
-    const packageJson = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8"));
-    assert.match(indexSource, /from "\.\/cmux\.ts"/);
-    assert.doesNotMatch(indexSource, /tmux/i);
-    assert.match(packageJson.description, /cmux/i);
+describe("rex.ts shellEscape", () => {
+  it("wraps in single quotes", () => {
+    assert.equal(shellEscape("hello"), "'hello'");
   });
 
-  it("exports cmux availability and identify parsers", () => {
-    for (const name of [
-      "isCmuxAvailable",
-      "parseCmuxJson",
-      "parseCmuxFocusedSnapshot",
-      "parseCmuxFocusedSnapshotFromJson",
-      "parseCmuxPaneRefForSurface",
-      "parseCmuxPaneRefForSurfaceFromJson",
-      "cmuxTreeHasPane",
-      "cmuxFocusMatches",
-      "shouldRestoreCmuxFocus",
-      "shouldRetryMissingCmuxPane",
-      "isCmuxMissingSurfaceError",
-      "isCmuxNoSpaceError",
-      "resetCascadingSplitState",
-    ]) {
-      assert.equal(typeof (cmuxSurface as any)[name], "function", `expected ${name} export`);
-    }
+  it("escapes single quotes", () => {
+    assert.equal(shellEscape("it's"), "'it'\\''s'");
   });
 
-  it("cascades splits alternating right then down on the new pane, then tabs when no space", () => {
-    const directory = createTestDir();
-    const binDir = join(directory, "bin");
-    const logFile = join(directory, "cmux.log");
-    const countFile = join(directory, "count");
-    const originalEnv = {
-      PATH: process.env.PATH,
-      CMUX_SOCKET_PATH: process.env.CMUX_SOCKET_PATH,
-      CMUX_SURFACE_ID: process.env.CMUX_SURFACE_ID,
-      CMUX_TEST_LOG: process.env.CMUX_TEST_LOG,
-      CMUX_TEST_COUNT: process.env.CMUX_TEST_COUNT,
-    };
-    try {
-      (cmuxSurface as any).resetCascadingSplitState();
-      mkdirSync(binDir, { recursive: true });
-      const fakeCmux = join(binDir, "cmux");
-      writeFileSync(fakeCmux, [
-        "#!/bin/sh",
-        "printf '%s\\n' \"$*\" >> \"$CMUX_TEST_LOG\"",
-        "case \"$1\" in",
-        "  identify)",
-        "    if [ \"$2\" = \"--surface\" ]; then",
-        "      printf '{\"surface_ref\":\"%s\",\"pane_ref\":\"pane:%s\"}\\n' \"$3\" \"${3#surface:}\"",
-        "    else",
-        "      printf '%s\\n' '{\"focused\":{\"surface_ref\":\"surface:901\",\"pane_ref\":\"pane:901\"}}'",
-        "    fi",
-        "    ;;",
-        "  tree) printf '%s\\n' 'pane:901 pane:902 pane:parent' ;;",
-        "  new-surface) printf '%s\\n' 'surface:903 pane:902' ;;",
-        "  new-split)",
-        "    count=0; test -f \"$CMUX_TEST_COUNT\" && count=$(cat \"$CMUX_TEST_COUNT\")",
-        "    count=$((count + 1)); printf '%s' \"$count\" > \"$CMUX_TEST_COUNT\"",
-        "    if [ \"$count\" -ge 3 ]; then",
-        "      printf 'Error: no_space: No space for new pane\\n' >&2",
-        "      exit 1",
-        "    fi",
-        "    printf 'surface:%s pane:%s\\n' \"$((900 + count))\" \"$((900 + count))\"",
-        "    ;;",
-        "esac",
-        "",
-      ].join("\n"), { mode: 0o755 });
-      process.env.PATH = `${binDir}:${originalEnv.PATH ?? ""}`;
-      process.env.CMUX_SOCKET_PATH = "test-socket";
-      process.env.CMUX_SURFACE_ID = "surface:parent";
-      process.env.CMUX_TEST_LOG = logFile;
-      process.env.CMUX_TEST_COUNT = countFile;
-
-      const s1 = cmuxSurface.createSurface("first");
-      const s2 = cmuxSurface.createSurface("second");
-      const s3 = cmuxSurface.createSurface("third"); // triggers no_space -> tabs in pane:902
-
-      assert.equal(s1, "surface:901");
-      assert.equal(s2, "surface:902");
-      assert.equal(s3, "surface:903");
-
-      const commands = readFileSync(logFile, "utf8").split("\n").filter(Boolean);
-      assert.deepEqual(commands.filter((line) => line.startsWith("new-split")), [
-        "new-split right --focus false --surface surface:parent",
-        "new-split down --focus false --surface surface:901",
-        "new-split right --focus false --surface surface:902",
-      ]);
-      assert.deepEqual(commands.filter((line) => line.startsWith("new-surface")), [
-        "new-surface --type terminal --pane pane:902 --focus false",
-      ]);
-    } finally {
-      (cmuxSurface as any).resetCascadingSplitState();
-      for (const [key, value] of Object.entries(originalEnv)) {
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
-      rmSync(directory, { recursive: true, force: true });
-    }
+  it("handles empty string", () => {
+    assert.equal(shellEscape(""), "''");
   });
 
-  describe("cmux identify parsing", () => {
-    it("parses valid JSON and rejects malformed JSON", () => {
-      assert.deepEqual(cmuxSurface.parseCmuxJson('{"ok":true}'), { ok: true });
-      assert.equal(cmuxSurface.parseCmuxJson("not json"), null);
-    });
-
-    it("extracts focused surface and pane refs without falling back to caller", () => {
-      assert.deepEqual(
-        cmuxSurface.parseCmuxFocusedSnapshot({
-          caller: { surface_ref: "surface:1", pane_ref: "pane:1" },
-          focused: { surface_ref: "surface:3", pane_ref: "pane:2" },
-        }),
-        { surfaceRef: "surface:3", paneRef: "pane:2" },
-      );
-      assert.equal(
-        cmuxSurface.parseCmuxFocusedSnapshot({
-          caller: { surface_ref: "surface:1", pane_ref: "pane:1" },
-        }),
-        null,
-      );
-      assert.equal(cmuxSurface.parseCmuxFocusedSnapshotFromJson("not json"), null);
-    });
-
-    it("extracts a pane ref only for the requested surface", () => {
-      assert.equal(
-        cmuxSurface.parseCmuxPaneRefForSurface(
-          { caller: { surface_ref: "surface:7", pane_ref: "pane:4" } },
-          "surface:7",
-        ),
-        "pane:4",
-      );
-      assert.equal(
-        cmuxSurface.parseCmuxPaneRefForSurface(
-          { surface_ref: "surface:8", pane_ref: "pane:4" },
-          "surface:7",
-        ),
-        null,
-      );
-      assert.equal(
-        cmuxSurface.parseCmuxPaneRefForSurfaceFromJson(
-          '{"surface_ref":"surface:7","pane_ref":"pane:5"}',
-          "surface:7",
-        ),
-        "pane:5",
-      );
-    });
-  });
-
-  describe("surface close errors", () => {
-    it("recognizes cmux not-found errors as an already-closed surface", () => {
-      assert.equal(cmuxSurface.isCmuxMissingSurfaceError(new Error("Error: not_found: Surface not found")), true);
-      assert.equal(cmuxSurface.isCmuxMissingSurfaceError({ stderr: "Error: not_found: Surface not found" }), true);
-      assert.equal(cmuxSurface.isCmuxMissingSurfaceError(new Error("permission denied")), false);
-    });
-  });
-
-  describe("focus restoration matching", () => {
-    it("prefers surface identity over a shared pane identity", () => {
-      assert.equal(
-        (cmuxSurface as any).cmuxFocusMatches(
-          { surfaceRef: "surface:2", paneRef: "pane:1" },
-          { surfaceRef: "surface:1", paneRef: "pane:1" },
-        ),
-        false,
-      );
-      assert.equal(
-        (cmuxSurface as any).cmuxFocusMatches(
-          { surfaceRef: "surface:1", paneRef: "pane:1" },
-          { surfaceRef: "surface:1", paneRef: "pane:1" },
-        ),
-        true,
-      );
-      assert.equal(
-        (cmuxSurface as any).cmuxFocusMatches(
-          { paneRef: "pane:1" },
-          { paneRef: "pane:1" },
-        ),
-        true,
-      );
-    });
-
-    it("restores only when cmux focused the newly created surface", () => {
-      const child = { surface: "surface:9", paneRef: "pane:9" };
-      assert.equal(
-        (cmuxSurface as any).shouldRestoreCmuxFocus(
-          { surfaceRef: "surface:9", paneRef: "pane:9" },
-          child,
-        ),
-        true,
-      );
-      assert.equal(
-        (cmuxSurface as any).shouldRestoreCmuxFocus(
-          { surfaceRef: "surface:1", paneRef: "pane:1" },
-          child,
-        ),
-        false,
-      );
-      assert.equal((cmuxSurface as any).shouldRestoreCmuxFocus(null, child), false);
-    });
-  });
-
-  describe("tracked subagent pane validation", () => {
-    it("matches exact pane refs rather than numeric prefixes", () => {
-      const tree = "├── pane pane:10\n│   └── surface surface:12\n";
-      assert.equal((cmuxSurface as any).cmuxTreeHasPane(tree, "pane:10"), true);
-      assert.equal((cmuxSurface as any).cmuxTreeHasPane(tree, "pane:1"), false);
-    });
-
-    it("retries only when a successful tree response confirms the pane is absent", () => {
-      assert.equal((cmuxSurface as any).shouldRetryMissingCmuxPane(null, "pane:10"), false);
-      assert.equal(
-        (cmuxSurface as any).shouldRetryMissingCmuxPane("pane pane:10\n", "pane:10"),
-        false,
-      );
-      assert.equal(
-        (cmuxSurface as any).shouldRetryMissingCmuxPane("pane pane:11\n", "pane:10"),
-        true,
-      );
-    });
-  });
-
-  describe("isCmuxAvailable", () => {
-    it("requires CMUX_SOCKET_PATH and reports the active cmux runtime", () => {
-      const previous = process.env.CMUX_SOCKET_PATH;
-      delete process.env.CMUX_SOCKET_PATH;
-      assert.equal(cmuxSurface.isCmuxAvailable(), false);
-      restoreEnvVar("CMUX_SOCKET_PATH", previous);
-      if (previous) {
-        assert.equal(cmuxSurface.isCmuxAvailable(), true);
-        assert.equal(cmuxSurface.isMuxAvailable(), true);
-      }
-    });
-  });
-
-  describe("shellEscape", () => {
-    it("wraps in single quotes", () => {
-      assert.equal(shellEscape("hello"), "'hello'");
-    });
-
-    it("escapes single quotes", () => {
-      assert.equal(shellEscape("it's"), "'it'\\''s'");
-    });
-
-    it("handles empty string", () => {
-      assert.equal(shellEscape(""), "''");
-    });
-
-    it("handles special characters", () => {
-      const input = 'echo "hello $world" && rm -rf /';
-      const escaped = shellEscape(input);
-      assert.ok(escaped.startsWith("'"));
-      assert.ok(escaped.endsWith("'"));
-      // Inside single quotes, everything is literal
-      assert.ok(escaped.includes("$world"));
-    });
+  it("handles special characters", () => {
+    const input = 'echo "hello $world" && rm -rf /';
+    const escaped = shellEscape(input);
+    assert.ok(escaped.startsWith("'"));
+    assert.ok(escaped.endsWith("'"));
+    // Inside single quotes, everything is literal
+    assert.ok(escaped.includes("$world"));
   });
 });
 
@@ -2970,10 +2731,10 @@ describe("portable model integration", () => {
       const testApi = (subagentsModule as any).__test__;
       const homeDirectory = join(directory, "home");
       const cwd = join(directory, "project");
-      mkdirSync(join(homeDirectory, ".pi", "cmuxagent"), { recursive: true });
-      mkdirSync(join(cwd, ".pi", "cmuxagent"), { recursive: true });
-      writeFileSync(join(homeDirectory, ".pi", "cmuxagent", "config.json"), JSON.stringify({ models: { scout: "provider/global" } }));
-      writeFileSync(join(cwd, ".pi", "cmuxagent", "config.json"), JSON.stringify({ models: { scout: "provider/project" } }));
+      mkdirSync(join(homeDirectory, ".pi", "rex-pi-agent"), { recursive: true });
+      mkdirSync(join(cwd, ".pi", "rex-pi-agent"), { recursive: true });
+      writeFileSync(join(homeDirectory, ".pi", "rex-pi-agent", "config.json"), JSON.stringify({ models: { scout: "provider/global" } }));
+      writeFileSync(join(cwd, ".pi", "rex-pi-agent", "config.json"), JSON.stringify({ models: { scout: "provider/project" } }));
 
       const result = testApi.resolveConfiguredSubagentModel({
         explicit: "provider/explicit",
@@ -3002,10 +2763,10 @@ describe("portable model integration", () => {
       const testApi = (subagentsModule as any).__test__;
       const homeDirectory = join(directory, "home");
       const cwd = join(directory, "project");
-      mkdirSync(join(homeDirectory, ".pi", "cmuxagent"), { recursive: true });
-      mkdirSync(join(cwd, ".pi", "cmuxagent"), { recursive: true });
-      writeFileSync(join(homeDirectory, ".pi", "cmuxagent", "config.json"), JSON.stringify({ models: { worker: "provider/global" } }));
-      writeFileSync(join(cwd, ".pi", "cmuxagent", "config.json"), JSON.stringify({ models: { worker: "provider/project" } }));
+      mkdirSync(join(homeDirectory, ".pi", "rex-pi-agent"), { recursive: true });
+      mkdirSync(join(cwd, ".pi", "rex-pi-agent"), { recursive: true });
+      writeFileSync(join(homeDirectory, ".pi", "rex-pi-agent", "config.json"), JSON.stringify({ models: { worker: "provider/global" } }));
+      writeFileSync(join(cwd, ".pi", "rex-pi-agent", "config.json"), JSON.stringify({ models: { worker: "provider/project" } }));
       const available = [
         model("provider", "project"),
         model("provider", "global"),
@@ -3030,10 +2791,10 @@ describe("portable model integration", () => {
       const testApi = (subagentsModule as any).__test__;
       const homeDirectory = join(directory, "home");
       const cwd = join(directory, "project");
-      mkdirSync(join(homeDirectory, ".pi", "cmuxagent"), { recursive: true });
-      mkdirSync(join(cwd, ".pi", "cmuxagent"), { recursive: true });
-      writeFileSync(join(homeDirectory, ".pi", "cmuxagent", "config.json"), JSON.stringify({ models: { researcher: "provider/missing-global" } }));
-      writeFileSync(join(cwd, ".pi", "cmuxagent", "config.json"), JSON.stringify({ models: { researcher: "provider/missing-project" } }));
+      mkdirSync(join(homeDirectory, ".pi", "rex-pi-agent"), { recursive: true });
+      mkdirSync(join(cwd, ".pi", "rex-pi-agent"), { recursive: true });
+      writeFileSync(join(homeDirectory, ".pi", "rex-pi-agent", "config.json"), JSON.stringify({ models: { researcher: "provider/missing-global" } }));
+      writeFileSync(join(cwd, ".pi", "rex-pi-agent", "config.json"), JSON.stringify({ models: { researcher: "provider/missing-project" } }));
 
       assert.deepEqual(testApi.resolveConfiguredSubagentModel({
         role: "researcher",
@@ -3057,10 +2818,10 @@ describe("portable model integration", () => {
       const homeDirectory = join(directory, "home");
       const cwd = join(directory, "project");
       const notifications: Array<{ message: string; level: string }> = [];
-      mkdirSync(join(homeDirectory, ".pi", "cmuxagent"), { recursive: true });
-      mkdirSync(join(cwd, ".pi", "cmuxagent"), { recursive: true });
-      writeFileSync(join(homeDirectory, ".pi", "cmuxagent", "config.json"), JSON.stringify({ models: { researcher: "provider/missing-global" } }));
-      writeFileSync(join(cwd, ".pi", "cmuxagent", "config.json"), JSON.stringify({ models: { researcher: "provider/missing-project" } }));
+      mkdirSync(join(homeDirectory, ".pi", "rex-pi-agent"), { recursive: true });
+      mkdirSync(join(cwd, ".pi", "rex-pi-agent"), { recursive: true });
+      writeFileSync(join(homeDirectory, ".pi", "rex-pi-agent", "config.json"), JSON.stringify({ models: { researcher: "provider/missing-global" } }));
+      writeFileSync(join(cwd, ".pi", "rex-pi-agent", "config.json"), JSON.stringify({ models: { researcher: "provider/missing-project" } }));
       const ctx = {
         ...modelContext({
           cwd,
@@ -3094,7 +2855,8 @@ describe("portable model integration", () => {
       PATH: process.env.PATH,
       HOME: process.env.HOME,
       PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR,
-      CMUX_SOCKET_PATH: process.env.CMUX_SOCKET_PATH,
+      REX_SESSION: process.env.REX_SESSION,
+      REX_BLOCK: process.env.REX_BLOCK,
     };
     const runningMap = testApi.runningSubagents as Map<string, any>;
     try {
@@ -3104,21 +2866,22 @@ describe("portable model integration", () => {
       const binDir = join(directory, "bin");
       const parentSessionDir = join(directory, "parent-sessions");
       const parentSessionFile = join(parentSessionDir, "parent.jsonl");
-      const cmuxLog = join(directory, "cmux.log");
-      mkdirSync(join(cwd, ".pi", "cmuxagent"), { recursive: true });
+      const rexLog = join(directory, "rex.log");
+      mkdirSync(join(cwd, ".pi", "rex-pi-agent"), { recursive: true });
       mkdirSync(join(agentDir, "agents"), { recursive: true });
       mkdirSync(binDir, { recursive: true });
       mkdirSync(parentSessionDir, { recursive: true });
-      writeFileSync(join(cwd, ".pi", "cmuxagent", "config.json"), JSON.stringify({ models: { researcher: "provider/missing-project" } }));
+      writeFileSync(join(cwd, ".pi", "rex-pi-agent", "config.json"), JSON.stringify({ models: { researcher: "provider/missing-project" } }));
       writeFileSync(join(agentDir, "agents", "researcher.md"), "---\nmodel: provider/profile\ntools: read\nauto-exit: true\n---\nResearch carefully.\n");
       writeFileSync(parentSessionFile, `${JSON.stringify({ type: "session", id: "parent" })}\n`);
-      const fakeCmux = join(binDir, "cmux");
-      writeFileSync(fakeCmux, "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$CMUX_TEST_LOG\"\n", { mode: 0o755 });
+      const fakeRex = join(binDir, "rex");
+      writeFileSync(fakeRex, "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$REX_TEST_LOG\"\n", { mode: 0o755 });
       process.env.PATH = `${binDir}:${originalEnv.PATH ?? ""}`;
       process.env.HOME = homeDirectory;
       process.env.PI_CODING_AGENT_DIR = agentDir;
-      process.env.CMUX_SOCKET_PATH = "test-socket";
-      process.env.CMUX_TEST_LOG = cmuxLog;
+      process.env.REX_SESSION = "session:test";
+      process.env.REX_BLOCK = "block:parent";
+      process.env.REX_TEST_LOG = rexLog;
       const notifications: Array<{ message: string; level: string }> = [];
       const ctx = {
         ...modelContext({ cwd, trusted: true, available: [model("provider", "profile")] }),
@@ -3133,7 +2896,7 @@ describe("portable model integration", () => {
       const running = await testApi.launchSubagent(
         { name: "Fallback launch", agent: "researcher", task: "Inspect only", cwd },
         ctx,
-        { surface: "surface:test" },
+        { surface: "block:test" },
       );
       const loadout = readSubagentLoadout(running.sessionFile);
       const launchScript = readFileSync(running.launchScriptFile, "utf8");
@@ -3143,14 +2906,14 @@ describe("portable model integration", () => {
         message: "Unavailable subagent model: provider/missing-project. Falling back to provider/profile.",
         level: "warning",
       }]);
-      assert.match(readFileSync(cmuxLog, "utf8"), /send --surface surface:test/);
+      assert.match(readFileSync(rexLog, "utf8"), /send -s session:test -b block:test -- /);
     } finally {
       runningMap.clear();
       for (const [key, value] of Object.entries(originalEnv)) {
         if (value === undefined) delete process.env[key];
         else process.env[key] = value;
       }
-      delete process.env.CMUX_TEST_LOG;
+      delete process.env.REX_TEST_LOG;
       rmSync(directory, { recursive: true, force: true });
     }
   });

@@ -1,57 +1,46 @@
-# cmuxagent
+# rex-pi-agent
 
-Async subagents for [Pi](https://github.com/earendil-works/pi), running in visible cmux surfaces or Rex panes. Spawn a subagent, keep working in the parent session, and receive the result automatically when it finishes.
+Async subagents for [Pi](https://github.com/earendil-works/pi), each running in its own visible [Rex](https://www.superlogical.com/rex/docs) pane. Spawn a subagent, keep working in the parent session, and get the result back automatically when it finishes.
 
-**cmux-only fork.** This repository consolidates [amosblomqvist/pi-interactive-subagents](https://github.com/amosblomqvist/pi-interactive-subagents) with the cmuxagent package work. See [Acknowledgements](#acknowledgements) for the full upstream lineage.
+You can watch every subagent work in its pane, type into it, or take it over. Panes open beside your pi pane without taking keyboard focus, and close when the subagent is done.
 
 ## Quick start
 
 ### 1. Prerequisites
 
-Install and configure:
-
-- [pi](https://github.com/earendil-works/pi)
-- [cmux](https://github.com/manaflow-ai/cmux) or Rex (the `rex` command)
-- At least one model provider usable by pi
-
-Confirm both commands are available:
+- [pi](https://github.com/earendil-works/pi), with at least one model provider set up
+- [Rex](https://www.superlogical.com/rex/docs), with the `rex` command on your `PATH`
 
 ```bash
 pi --version
-cmux --version   # or: rex --version
+rex version
 ```
 
-### 2. Install cmuxagent
-
-For this local checkout:
+### 2. Install
 
 ```bash
-cd /Users/sean/Documents/cmuxagent
+pi install git:github.com/motionid/rex-pi-agent
+pi list   # should show git:github.com/motionid/rex-pi-agent
+```
+
+Or from a local checkout, which pi uses in place (edits apply after `/reload`):
+
+```bash
+git clone https://github.com/motionid/rex-pi-agent
+cd rex-pi-agent
 npm install
 pi install "$(pwd)"
 ```
 
-Or install the current GitHub branch using your existing GitHub credentials:
+### 3. Remove other subagent packages
+
+Only one package can register the `subagent`, `subagent_message` and `subagents_list` tools. If another one is installed (for example `npm:pi-subagents`), remove it:
 
 ```bash
-pi install git:github.com/motionid/cmuxagent
+pi remove npm:pi-subagents
 ```
 
-A local installation references the checkout directly rather than copying it. Confirm the package is registered:
-
-```bash
-pi list
-```
-
-The output should include the resolved path:
-
-```text
-/Users/sean/Documents/cmuxagent
-```
-
-### 3. Resolve a `pi-subagents` conflict
-
-This extension and `npm:pi-subagents` both register a tool named `subagent`, so their extensions cannot be enabled together. You may keep the `pi-subagents` skills and prompts by disabling only its extension in `~/.pi/agent/settings.json`:
+To keep that package's skills and prompts, disable only its extension in `~/.pi/agent/settings.json` instead, by replacing its entry in `packages` with:
 
 ```json
 {
@@ -60,88 +49,37 @@ This extension and `npm:pi-subagents` both register a tool named `subagent`, so 
 }
 ```
 
-Use that object in the `packages` array instead of the plain `"npm:pi-subagents"` entry. Alternatively, remove the conflicting package completely:
+### 4. Start pi in Rex
 
-```bash
-pi remove npm:pi-subagents
-```
-
-Other cmux packages are fine as long as they do not register `subagent`, `subagent_message`, or `subagents_list`.
-
-### 4. Start pi inside cmux
-
-Open a terminal surface in cmux, then run:
+Open a terminal in Rex and run:
 
 ```bash
 pi
 ```
 
-The extension requires `CMUX_SOCKET_PATH` and `CMUX_SURFACE_ID`, which cmux supplies automatically to its terminal surfaces. Running pi in Terminal.app, iTerm, or a plain shell outside cmux or Rex will show a setup error when you try to spawn an agent.
+Rex sets `REX_SESSION` and `REX_BLOCK` in every terminal it opens; the extension uses them to find your pi pane. In Terminal.app, iTerm or another terminal outside Rex, spawning a subagent shows a setup error.
 
-#### Or inside Rex
+### 5. Try it
 
-Run `pi` in a Rex terminal instead. Rex sets `REX_SESSION` and `REX_BLOCK` in every terminal, and the extension then uses the `rex` command: each subagent opens in its own labelled Rex pane, split from the pi pane without taking focus, alternating right and below. If a split fails, the subagent opens in a new Rex tab. When both are present, cmux is used.
-
-### 5. Try a subagent
-
-In pi, run:
+In pi:
 
 ```text
 /subagent scout Inspect the README and summarize its installation steps
 ```
 
-Expected behavior:
+What happens:
 
-1. A pane opens on the right without taking keyboard focus.
-2. The scout runs in its own named cmux split.
-3. Its status appears above the main pi editor.
-4. The result returns to the main session automatically.
-
-A second subagent splits vertically (down) on that new pane; further subagents alternate horizontally and vertically across the cascade. When cmux runs out of space to split further, subsequent subagents automatically open as tabs in that final pane.
-
-### Updating
-
-The installation points directly at this checkout. After pulling or editing code, start a new pi session or run `/reload`; you do not need to reinstall the package.
-
-```bash
-cd /Users/sean/Documents/cmuxagent
-git pull
-npm install
-```
-
-### Uninstalling
-
-```bash
-pi remove /Users/sean/Documents/cmuxagent
-```
-
-Then confirm removal with `pi list`.
-
-### Troubleshooting
-
-**“Tool `subagent` conflicts with …”**
-
-Disable or remove the other package that registers `subagent`; see step 3.
-
-**“Subagents require cmux or Rex”**
-
-Start pi from a terminal surface inside cmux (check that `echo "$CMUX_SOCKET_PATH"` and `echo "$CMUX_SURFACE_ID"` are non-empty), or from a Rex terminal (check `echo "$REX_SESSION" "$REX_BLOCK"` and `rex whoami`).
-
-**A pane opens but the command never starts**
-
-Increase the shell startup delay before starting pi:
-
-```bash
-export PI_SUBAGENT_SHELL_READY_DELAY_MS=2500
-```
-
-**A configured subagent model is unavailable**
-
-cmuxagent warns once, skips unavailable configured models, and falls through to the next source in the precedence chain. Run `/subagent-setup` again or use an explicit model that is available in the parent Pi session.
+1. A pane labelled `scout` opens to the right of pi. Your keyboard focus stays where it was.
+2. The scout runs in that pane; its status shows above pi's editor.
+3. When it finishes, its pane closes and the result arrives in your pi session as a new turn.
 
 ## How it works
 
-`subagent()` returns immediately. Sub-agents open in a cascading split layout: the first splits right from the parent pane, the next splits down on that pane, then right, then down. When the screen runs out of space for further splits, subsequent sub-agents open as tabs in the final pane. Surface creation preserves keyboard focus. A live widget above the input tracks every running sub-agent, and when one finishes, its result is steered into the main session as a notification that triggers a new turn.
+`subagent()` returns immediately. Each subagent gets its own Rex pane, split from the previous one so the layout tiles: the first splits right from the pi pane, the next below that one, then right, then below. If a split fails (for example, no room left), the subagent opens in a new Rex tab instead. Panes are labelled with the subagent's name.
+
+The extension drives Rex only through the `rex` command: `rex split` to open a pane, `rex send` to type into it, `rex capture` to read it, and `rex block close` to close it.
+
+A live widget above the input tracks every running subagent. When one finishes, its result is sent to the main session as a message that starts a new turn.
 
 ```
 ╭─ Subagents ──────────────────────────── 2 running ─╮
@@ -150,21 +88,13 @@ cmuxagent warns once, skips unavailable configured models, and falls through to 
 ╰────────────────────────────────────────────────────╯
 ```
 
-Spawn several in parallel — they run concurrently and steer results back independently as each finishes.
-
-cmux manages the split layout. Each sub-agent's split or tab closes automatically when it finishes.
-
-If your shell startup is slow and launch commands get dropped before the prompt is ready, raise the delay:
-
-```bash
-export PI_SUBAGENT_SHELL_READY_DELAY_MS=2500   # default: 500
-```
+Spawn several in parallel: they run at the same time and each reports back when it finishes.
 
 ## Tools
 
 | Tool | Description |
 | --- | --- |
-| `subagent` | Spawn a sub-agent in a dedicated cmux surface (async) |
+| `subagent` | Spawn a sub-agent in its own Rex pane (async) |
 | `subagent_message` | Message a sub-agent by name — steers it if running, resumes its session if finished |
 | `subagents_list` | List available agent definitions |
 | `ask_question` | *(sub-agent sessions only)* Ask the orchestrator a question and wait for the reply |
@@ -221,8 +151,8 @@ All three inherit the parent Pi session's model by default, are autonomous (`aut
 
 Run `/subagent-setup` to choose `Inherit parent model` or one of the models currently available to Pi for each bundled role. The command can save to:
 
-- global configuration: `~/.pi/cmuxagent/config.json`;
-- trusted project configuration: `.pi/cmuxagent/config.json`.
+- global configuration: `~/.pi/rex-pi-agent/config.json`;
+- trusted project configuration: `.pi/rex-pi-agent/config.json`.
 
 Project configuration is read and written only when Pi reports that the project is trusted. Both files use this shape:
 
@@ -244,7 +174,7 @@ A spawn resolves its model in this exact order:
 4. a custom profile's explicit `model` field;
 5. the parent session model.
 
-Unavailable candidates produce a warning and are skipped in favor of the next available source. `/subagent-setup` writes only cmuxagent configuration; it never changes Pi's global settings, authentication, credentials, or provider catalogues.
+Unavailable candidates produce a warning and are skipped in favor of the next available source. `/subagent-setup` writes only rex-pi-agent configuration; it never changes Pi's global settings, authentication, credentials, or provider catalogues.
 
 ## Custom agents
 
@@ -339,9 +269,49 @@ Status display is configured via `config.json` in the extension directory (copy 
 }
 ```
 
+## Updating and removing
+
+```bash
+pi update                                        # pulls the latest version
+pi remove git:github.com/motionid/rex-pi-agent   # uninstall
+```
+
+For a local checkout: `git pull && npm install`, then `/reload` in pi.
+
+## Troubleshooting
+
+**“Subagents require Rex”**
+
+Start pi from a terminal inside Rex. Check that `echo "$REX_SESSION" "$REX_BLOCK"` prints two IDs and that `rex whoami` works.
+
+**“Tool `subagent` conflicts with …”**
+
+Another package registers the same tools; see step 3.
+
+**A pane opens but the command never starts**
+
+Your shell is slow to start. Give it longer before the command is typed:
+
+```bash
+export PI_SUBAGENT_SHELL_READY_DELAY_MS=2500   # default: 500
+```
+
+**A configured subagent model is unavailable**
+
+rex-pi-agent warns once, skips that model, and uses the next source in the order under [Model configuration](#model-configuration). Run `/subagent-setup` again or pass a model that the parent pi session can use.
+
+## Development
+
+```bash
+npm install
+npm test                    # unit tests (a fake `rex` stands in for Rex)
+npm run typecheck
+npm run test:integration    # from a Rex terminal: opens real panes; the lifecycle tests run real pi sessions
+```
+
 ## Acknowledgements
 
-This cmux-only package is consolidated from [amosblomqvist/pi-interactive-subagents](https://github.com/amosblomqvist/pi-interactive-subagents), itself derived from [HazAT/pi-interactive-subagents](https://github.com/HazAT/pi-interactive-subagents). The upstream project originated the subagent architecture, multiplexer surface layer, and status widget; its supervision features were inspired by [RepoPrompt](https://repoprompt.com/). Upstream MIT licensing and attribution are retained.
+Consolidated from [amosblomqvist/pi-interactive-subagents](https://github.com/amosblomqvist/pi-interactive-subagents), itself derived from [HazAT/pi-interactive-subagents](https://github.com/HazAT/pi-interactive-subagents), which originated the subagent architecture, the terminal layer and the status widget; its supervision features were inspired by [RepoPrompt](https://repoprompt.com/). Upstream MIT licensing and attribution are retained.
 
 ## License
 

@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import * as mux from "../pi-extension/subagents/cmux.ts";
+import * as mux from "../pi-extension/subagents/rex.ts";
 import { parseRexCreatedBlock } from "../pi-extension/subagents/rex.ts";
 
 // A fake `rex` on PATH: logs every call; `split` returns block:1, block:2, … and
@@ -27,7 +27,7 @@ case "$1" in
 esac
 `;
 
-const ENV_KEYS = ["PATH", "REX_SESSION", "REX_BLOCK", "CMUX_SOCKET_PATH", "REX_TEST_LOG", "REX_TEST_COUNT", "REX_TEST_FAIL_SPLIT_AT", "REX_TEST_GONE"];
+const ENV_KEYS = ["PATH", "REX_SESSION", "REX_BLOCK", "REX_TEST_LOG", "REX_TEST_COUNT", "REX_TEST_FAIL_SPLIT_AT", "REX_TEST_GONE"];
 
 describe("rex backend", () => {
   let dir: string;
@@ -45,7 +45,6 @@ describe("rex backend", () => {
     process.env.REX_BLOCK = "block:parent";
     process.env.REX_TEST_LOG = join(dir, "rex.log");
     process.env.REX_TEST_COUNT = join(dir, "count");
-    delete process.env.CMUX_SOCKET_PATH;
     delete process.env.REX_TEST_FAIL_SPLIT_AT;
     delete process.env.REX_TEST_GONE;
     mux.resetCascadingSplitState();
@@ -60,14 +59,11 @@ describe("rex backend", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("is used inside Rex unless cmux itself is available", () => {
-    assert.equal(mux.isMuxAvailable(), true);
-    assert.equal(mux.useRex(), true);
-    process.env.CMUX_SOCKET_PATH = "sock"; // no cmux binary here, so cmux is not available → still Rex
-    assert.equal(mux.useRex(), true);
+  it("is available only inside a Rex terminal", () => {
+    assert.equal(mux.isRexAvailable(), true);
     delete process.env.REX_BLOCK;
-    assert.equal(mux.useRex(), false);
-    assert.match(mux.muxSetupHint(), /Rex/);
+    assert.equal(mux.isRexAvailable(), false);
+    assert.match(mux.rexSetupHint(), /Rex/);
   });
 
   it("cascades splits right then below from the parent pane, without taking focus, and labels them", () => {
@@ -101,6 +97,7 @@ describe("rex backend", () => {
     mux.sendCommand("block:7", "-leading dash");
     assert.ok(calls().includes("send -s session:s -b block:7 -- -leading dash"));
     assert.equal(mux.readScreen("block:7", 2), "four\n__SUBAGENT_DONE_0__\n");
+    assert.ok(calls().includes("capture -s session:s -b block:7 --trim --unwrap"), "joins soft-wrapped lines so a wrapped done marker is still found");
     mux.closeSurface("block:7");
     assert.ok(calls().includes("block close -s session:s block:7"));
   });

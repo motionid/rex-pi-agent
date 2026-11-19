@@ -2,14 +2,14 @@
  * Integration tests for the full subagent lifecycle.
  *
  * These tests spawn REAL pi sessions with REAL LLM calls (haiku by default).
- * Each test creates a cmux surface, runs pi with a task that uses the subagent
+ * Each test creates a Rex pane, runs pi with a task that uses the subagent
  * tool, and verifies the outcome via marker files and screen output.
  *
  * Costs: ~$0.01-0.05 per test run (haiku).
  * Duration: ~30-90s per test.
  *
- * Run inside cmux:
- *   cmux bash -c 'npm run test:integration'
+ * Run from a Rex terminal:
+ *   npm run test:integration
  *
  * Configuration:
  *   PI_TEST_MODEL     — model for all pi sessions (default: anthropic/claude-haiku-4-5)
@@ -37,13 +37,13 @@ import {
 const backends = getAvailableBackends();
 
 if (backends.length === 0) {
-  console.log("⚠️  cmux is not available — skipping subagent lifecycle integration tests");
-  console.log("   Run inside cmux to enable these tests.");
+  console.log("⚠️  Rex is not available — skipping subagent lifecycle integration tests");
+  console.log("   Run from a Rex terminal to enable these tests.");
 }
 
 for (const backend of backends) {
   // Seven serial tests each have a PI_TIMEOUT-scale model interaction. Keep the
-  // suite budget above their combined per-test budget so a slow cmux run is not
+  // suite budget above their combined per-test budget so a slow Rex run is not
   // cancelled while every individual test is still within its own limit.
   describe(`subagent-lifecycle [${backend}]`, { timeout: PI_TIMEOUT * 8 }, () => {
     let env: TestEnv;

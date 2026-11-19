@@ -2,9 +2,9 @@
  * Integration test harness for pi-interactive-subagents.
  *
  * Provides utilities to:
- * - Detect whether cmux is available
+ * - Detect whether Rex is available
  * - Create isolated test environments with test agent definitions
- * - Start real pi sessions in cmux surfaces
+ * - Start real pi sessions in Rex panes
  * - Poll for file creation and screen output
  * - Clean up panes and temp files after tests
  */
@@ -24,7 +24,7 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import {
-  isMuxAvailable,
+  isRexAvailable,
   createSurface,
   createSurfaceSplit,
   sendCommand,
@@ -33,9 +33,9 @@ import {
   readScreenAsync,
   closeSurface,
   shellEscape,
-} from "../../pi-extension/subagents/cmux.ts";
+} from "../../pi-extension/subagents/rex.ts";
 
-// Re-export cmux primitives for tests
+// Re-export Rex primitives for tests
 export {
   createSurface,
   createSurfaceSplit,
@@ -81,41 +81,35 @@ export const PI_TIMEOUT = Number(process.env.PI_TEST_TIMEOUT ?? "120000");
 
 // ── Backend detection ──
 
-/** Detect whether cmux is available in the current environment. */
+/** ["rex"] when running inside a Rex terminal, else [] (integration tests skip). */
 export function getAvailableBackends(): string[] {
-  return isMuxAvailable() ? ["cmux"] : [];
+  return isRexAvailable() ? ["rex"] : [];
+}
+
+function rexSession(): string {
+  return process.env.REX_SESSION ?? "";
 }
 
 export function focusSurface(surface: string): void {
-  const pane = getSurfacePane(surface);
-  if (pane) execFileSync("cmux", ["focus-pane", "--pane", pane], { encoding: "utf8" });
-  execFileSync("cmux", ["focus-panel", "--panel", surface], { encoding: "utf8" });
+  execFileSync("rex", ["focus", "-s", rexSession(), surface], { encoding: "utf8" });
 }
 
+/** The focused pane of the window that holds this test's own pane. */
 export function getFocusedSurface(): string | null {
   try {
-    const identity = JSON.parse(
-      execFileSync("cmux", ["identify", "--json"], { encoding: "utf8" }),
+    const session = JSON.parse(
+      execFileSync("rex", ["session", "inspect", rexSession(), "--json"], { encoding: "utf8" }),
     );
-    return typeof identity?.focused?.surface_ref === "string"
-      ? identity.focused.surface_ref
-      : null;
+    const window = (session?.windows ?? []).find((w: any) => w.window_id === session?.active_window_id);
+    return typeof window?.focused_block_id === "string" ? window.focused_block_id : null;
   } catch {
     return null;
   }
 }
 
+/** Rex has no separate pane/surface split: the pane is the block. */
 export function getSurfacePane(surface: string): string | null {
-  try {
-    const identity = JSON.parse(
-      execFileSync("cmux", ["identify", "--surface", surface, "--json"], {
-        encoding: "utf8",
-      }),
-    );
-    return typeof identity?.caller?.pane_ref === "string" ? identity.caller.pane_ref : null;
-  } catch {
-    return null;
-  }
+  return surface;
 }
 
 export async function waitForFocusedSurface(
@@ -129,7 +123,7 @@ export async function waitForFocusedSurface(
   }
 
   throw new Error(
-    `Timeout (${timeout}ms) waiting for focused cmux surface ${surface}; ` +
+    `Timeout (${timeout}ms) waiting for focused Rex pane ${surface}; ` +
       `current focus is ${getFocusedSurface() ?? "unknown"}`,
   );
 }

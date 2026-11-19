@@ -13,7 +13,7 @@ import {
 const tempDirectories: string[] = [];
 
 function makeTempDirectory(): string {
-  const directory = mkdtempSync(join(tmpdir(), "cmuxagent-model-config-"));
+  const directory = mkdtempSync(join(tmpdir(), "rex-pi-agent-model-config-"));
   tempDirectories.push(directory);
   return directory;
 }

@@ -15,8 +15,8 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import {
-  isMuxAvailable,
-  muxSetupHint,
+  isRexAvailable,
+  rexSetupHint,
   createSurface,
   sendCommand,
   sendLongCommand,
@@ -24,7 +24,7 @@ import {
   closeSurface,
   shellEscape,
   readScreen,
-} from "./cmux.ts";
+} from "./rex.ts";
 import {
   BUNDLED_AGENT_ROLES,
   loadModelOverrides,
@@ -215,10 +215,10 @@ export function resolveConfiguredSubagentModel(options: {
   const trustedProject = ctx.isProjectTrusted();
   const role = isBundledAgentRole(options.role) ? options.role : undefined;
   const globalOverrides = loadModelOverrides(
-    join(options.homeDirectory ?? homedir(), ".pi", "cmuxagent", "config.json"),
+    join(options.homeDirectory ?? homedir(), ".pi", "rex-pi-agent", "config.json"),
   );
   const projectOverrides = trustedProject
-    ? loadModelOverrides(join(ctx.cwd, ".pi", "cmuxagent", "config.json"))
+    ? loadModelOverrides(join(ctx.cwd, ".pi", "rex-pi-agent", "config.json"))
     : { models: {} };
 
   return resolveModel({
@@ -247,8 +247,8 @@ export function saveModelSetup(options: {
   }
 
   const configPath = options.scope === "global"
-    ? join(options.homeDirectory, ".pi", "cmuxagent", "config.json")
-    : join(options.cwd, ".pi", "cmuxagent", "config.json");
+    ? join(options.homeDirectory, ".pi", "rex-pi-agent", "config.json")
+    : join(options.cwd, ".pi", "rex-pi-agent", "config.json");
   let overrides = loadModelOverrides(configPath);
   for (const role of BUNDLED_AGENT_ROLES) {
     overrides = updateModelOverride(overrides, role, options.selections[role] ?? undefined);
@@ -591,15 +591,15 @@ function getShellReadyDelayMs(): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 500;
 }
 
-function muxUnavailableResult() {
+function rexUnavailableResult() {
   return {
     content: [
       {
         type: "text" as const,
-        text: `Subagents require cmux or Rex. ${muxSetupHint()}`,
+        text: `Subagents require Rex. ${rexSetupHint()}`,
       },
     ],
-    details: { error: "cmux or Rex not available" },
+    details: { error: "Rex not available" },
   };
 }
 
@@ -1876,10 +1876,10 @@ export default function subagentsExtension(pi: ExtensionAPI) {
           };
         }
 
-        // Validate prerequisites (need mux + a session file to derive the
+        // Validate prerequisites (need Rex + a session file to derive the
         // artifact dir that hosts this session's name registry).
-        if (!isMuxAvailable()) {
-          return muxUnavailableResult();
+        if (!isRexAvailable()) {
+          return rexUnavailableResult();
         }
 
         if (!ctx.sessionManager.getSessionFile()) {
@@ -2201,8 +2201,8 @@ export default function subagentsExtension(pi: ExtensionAPI) {
           return { content: [{ type: "text" as const, text: err }], details: { error: err } };
         }
 
-        if (!isMuxAvailable()) {
-          return muxUnavailableResult();
+        if (!isRexAvailable()) {
+          return rexUnavailableResult();
         }
 
         // ── Steer a running subagent ──

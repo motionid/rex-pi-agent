@@ -1,17 +1,17 @@
 /**
- * Integration tests for the cmux surface layer.
+ * Integration tests for the Rex terminal layer.
  *
- * These tests exercise real cmux operations: creating surfaces,
+ * These tests exercise real Rex operations: creating panes,
  * sending commands, reading screen output, and closing panes.
  * No LLM calls — fast and free.
  *
- * Run inside cmux:
- *   cmux bash -c 'npm run test:integration'
+ * Run from a Rex terminal:
+ *   npm run test:integration
  */
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { unlinkSync } from "node:fs";
-import { pollForExit } from "../../pi-extension/subagents/cmux.ts";
+import { pollForExit } from "../../pi-extension/subagents/rex.ts";
 import {
   getAvailableBackends,
   createTestEnv,
@@ -40,12 +40,12 @@ const backends = getAvailableBackends();
 const FOCUS_TEST_SHELL_READY_DELAY_MS = Number(process.env.PI_SUBAGENT_SHELL_READY_DELAY_MS ?? "2500");
 
 if (backends.length === 0) {
-  console.log("⚠️  cmux is not available — skipping cmux-surface integration tests");
-  console.log("   Run inside cmux to enable these tests.");
+  console.log("⚠️  Rex is not available — skipping rex-surface integration tests");
+  console.log("   Run from a Rex terminal to enable these tests.");
 }
 
 for (const backend of backends) {
-  describe(`cmux-surface [${backend}]`, { timeout: 60_000 }, () => {
+  describe(`rex-surface [${backend}]`, { timeout: 60_000 }, () => {
     let env: TestEnv;
 
     before(() => {
@@ -166,7 +166,7 @@ for (const backend of backends) {
       assert.notEqual(
         getSurfacePane(s1),
         getSurfacePane(s2),
-        "each subagent should open in its own cmux split",
+        "each subagent should open in its own Rex pane",
       );
 
       const m1 = uniqueId();
@@ -225,7 +225,7 @@ for (const backend of backends) {
       await sleep(1000);
 
       const marker = uniqueId();
-      const filePath = `/tmp/pi-cmux-test-${marker}.txt`;
+      const filePath = `/tmp/pi-rex-test-${marker}.txt`;
 
       sendCommand(surface, `echo "FILE_${marker}" > ${filePath} && echo "WRITTEN_${marker}"`);
 
