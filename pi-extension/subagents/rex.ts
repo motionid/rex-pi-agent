@@ -123,7 +123,8 @@ export function createSurface(name: string): string {
 
 /** Types a command into the pane and presses Return. */
 export function sendCommand(block: string, command: string): void {
-  rex(["send", "-s", session(), "-b", block, "--", command + "\n"]);
+  rex(["send", "-s", session(), "-b", block, "--", command]);
+  rex(["send-key", "-s", session(), "-b", block, "enter"]);
 }
 
 function lastLines(screen: string, lines: number): string {

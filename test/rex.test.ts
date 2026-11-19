@@ -96,6 +96,7 @@ describe("rex backend", () => {
   it("sends text after -- with Return, reads the last lines, and closes", () => {
     mux.sendCommand("block:7", "-leading dash");
     assert.ok(calls().includes("send -s session:s -b block:7 -- -leading dash"));
+    assert.ok(calls().includes("send-key -s session:s -b block:7 enter"));
     assert.equal(mux.readScreen("block:7", 2), "four\n__SUBAGENT_DONE_0__\n");
     assert.ok(calls().includes("capture -s session:s -b block:7 --trim --unwrap"), "joins soft-wrapped lines so a wrapped done marker is still found");
     mux.closeSurface("block:7");
