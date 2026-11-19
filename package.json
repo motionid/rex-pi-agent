@@ -1,7 +1,7 @@
 {
   "name": "cmuxagent",
   "version": "3.7.2",
-  "description": "Interactive subagents for Pi running in visible cmux surfaces",
+  "description": "Interactive subagents for Pi running in visible cmux surfaces or Rex panes",
   "keywords": [
     "pi-package"
   ],

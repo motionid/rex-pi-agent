@@ -596,10 +596,10 @@ function muxUnavailableResult() {
     content: [
       {
         type: "text" as const,
-        text: `Subagents require cmux. ${muxSetupHint()}`,
+        text: `Subagents require cmux or Rex. ${muxSetupHint()}`,
       },
     ],
-    details: { error: "cmux not available" },
+    details: { error: "cmux or Rex not available" },
   };
 }
 
@@ -1096,7 +1096,7 @@ function steerSubagent(
   } catch (error: any) {
     return {
       error:
-        `Failed to deliver message to subagent "${running.name}" via cmux: ` +
+        `Failed to deliver message to subagent "${running.name}" via the terminal: ` +
         `${error?.message ?? String(error)}`,
     };
   }

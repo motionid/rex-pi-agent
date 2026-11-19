@@ -1,5 +1,5 @@
 /**
- * cmux surface layer.
+ * cmux surface layer (and the dispatcher to rex.ts when pi runs in Rex).
  *
  * Everything the extension does to a terminal surface goes through this API:
  * create a surface, type a command, read its screen, close it, and poll for
@@ -11,6 +11,18 @@ import { promisify } from "node:util";
 import { existsSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import {
+  isRexAvailable,
+  isRexSurface,
+  rexBlockExists,
+  rexCloseSurface,
+  rexCreateSplit,
+  rexCreateSurface,
+  rexReadScreen,
+  rexReadScreenAsync,
+  rexSend,
+  resetRexCascade,
+} from "./rex.ts";
 
 const execFileAsync = promisify(execFile);
 const commandAvailability = new Map<string, boolean>();
@@ -32,12 +44,17 @@ export function isCmuxAvailable(): boolean {
   return !!process.env.CMUX_SOCKET_PATH && hasCommand("cmux");
 }
 
+/** cmux when pi runs in cmux (unchanged behaviour), else Rex when it runs in Rex. */
+export function useRex(): boolean {
+  return !isCmuxAvailable() && isRexAvailable();
+}
+
 export function isMuxAvailable(): boolean {
-  return isCmuxAvailable();
+  return isCmuxAvailable() || isRexAvailable();
 }
 
 export function muxSetupHint(): string {
-  return "Open a terminal in cmux, then run `pi`.";
+  return "Open a terminal in cmux or Rex, then run `pi`.";
 }
 
 function requireCmux(): void {
@@ -255,6 +272,7 @@ export function resetCascadingSplitState(): void {
   lastLiveSurface = null;
   lastLivePane = null;
   splitDepth = 0;
+  resetRexCascade();
 }
 
 export function nextSubagentSplitDirection(index: number): "right" | "down" {
@@ -262,6 +280,7 @@ export function nextSubagentSplitDirection(index: number): "right" | "down" {
 }
 
 export function createSurface(name: string): string {
+  if (useRex()) return rexCreateSurface(name);
   requireCmux();
 
   // Validate lastLiveSurface: if it died, see if lastLivePane is still in tree
@@ -302,10 +321,12 @@ export function createSurfaceSplit(
   direction: "left" | "right" | "up" | "down",
   fromSurface?: string,
 ): string {
+  if (useRex()) return rexCreateSplit(name, direction, fromSurface);
   return createSplit(name, direction, fromSurface).surface;
 }
 
 export function sendCommand(surface: string, command: string): void {
+  if (isRexSurface(surface)) return rexSend(surface, command + "\n");
   requireCmux();
   execFileSync("cmux", ["send", "--surface", surface, "--", command + "\n"], {
     encoding: "utf8",
@@ -335,6 +356,7 @@ export function sendLongCommand(
 }
 
 export function readScreen(surface: string, lines = 50): string {
+  if (isRexSurface(surface)) return rexReadScreen(surface, lines);
   requireCmux();
   return execFileSync(
     "cmux",
@@ -344,6 +366,7 @@ export function readScreen(surface: string, lines = 50): string {
 }
 
 export async function readScreenAsync(surface: string, lines = 50): Promise<string> {
+  if (isRexSurface(surface)) return rexReadScreenAsync(surface, lines);
   requireCmux();
   const { stdout } = await execFileAsync(
     "cmux",
@@ -365,6 +388,7 @@ export function isCmuxMissingSurfaceError(error: unknown): boolean {
 }
 
 export function closeSurface(surface: string): void {
+  if (isRexSurface(surface)) return rexCloseSurface(surface);
   requireCmux();
   if (!cmuxSurfaceExists(surface)) return;
   try {
@@ -447,7 +471,7 @@ export async function pollForExit(
         } catch {}
       }
 
-      consecutiveMissingSurfaceChecks = cmuxSurfaceExists(surface)
+      consecutiveMissingSurfaceChecks = (isRexSurface(surface) ? rexBlockExists(surface) : cmuxSurfaceExists(surface))
         ? 0
         : consecutiveMissingSurfaceChecks + 1;
       if (consecutiveMissingSurfaceChecks >= 3) {

@@ -1,6 +1,6 @@
 # cmuxagent
 
-Async subagents for [Pi](https://github.com/earendil-works/pi), running in visible cmux surfaces. Spawn a subagent, keep working in the parent session, and receive the result automatically when it finishes.
+Async subagents for [Pi](https://github.com/earendil-works/pi), running in visible cmux surfaces or Rex panes. Spawn a subagent, keep working in the parent session, and receive the result automatically when it finishes.
 
 **cmux-only fork.** This repository consolidates [amosblomqvist/pi-interactive-subagents](https://github.com/amosblomqvist/pi-interactive-subagents) with the cmuxagent package work. See [Acknowledgements](#acknowledgements) for the full upstream lineage.
 
@@ -11,14 +11,14 @@ Async subagents for [Pi](https://github.com/earendil-works/pi), running in visib
 Install and configure:
 
 - [pi](https://github.com/earendil-works/pi)
-- [cmux](https://github.com/manaflow-ai/cmux)
+- [cmux](https://github.com/manaflow-ai/cmux) or Rex (the `rex` command)
 - At least one model provider usable by pi
 
 Confirm both commands are available:
 
 ```bash
 pi --version
-cmux --version
+cmux --version   # or: rex --version
 ```
 
 ### 2. Install cmuxagent
@@ -76,7 +76,11 @@ Open a terminal surface in cmux, then run:
 pi
 ```
 
-The extension requires `CMUX_SOCKET_PATH` and `CMUX_SURFACE_ID`, which cmux supplies automatically to its terminal surfaces. Running pi in Terminal.app, iTerm, or a plain shell outside cmux will show a setup error when you try to spawn an agent.
+The extension requires `CMUX_SOCKET_PATH` and `CMUX_SURFACE_ID`, which cmux supplies automatically to its terminal surfaces. Running pi in Terminal.app, iTerm, or a plain shell outside cmux or Rex will show a setup error when you try to spawn an agent.
+
+#### Or inside Rex
+
+Run `pi` in a Rex terminal instead. Rex sets `REX_SESSION` and `REX_BLOCK` in every terminal, and the extension then uses the `rex` command: each subagent opens in its own labelled Rex pane, split from the pi pane without taking focus, alternating right and below. If a split fails, the subagent opens in a new Rex tab. When both are present, cmux is used.
 
 ### 5. Try a subagent
 
@@ -119,9 +123,9 @@ Then confirm removal with `pi list`.
 
 Disable or remove the other package that registers `subagent`; see step 3.
 
-**“cmux is required for subagents”**
+**“Subagents require cmux or Rex”**
 
-Start pi from a terminal surface inside cmux. Check that `echo "$CMUX_SOCKET_PATH"` and `echo "$CMUX_SURFACE_ID"` are non-empty.
+Start pi from a terminal surface inside cmux (check that `echo "$CMUX_SOCKET_PATH"` and `echo "$CMUX_SURFACE_ID"` are non-empty), or from a Rex terminal (check `echo "$REX_SESSION" "$REX_BLOCK"` and `rex whoami`).
 
 **A pane opens but the command never starts**
 
