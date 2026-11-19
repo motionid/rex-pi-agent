@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make bundled cmuxagent profiles work on any Pi installation without requiring
+Make bundled rex-pi-agent profiles work on any Pi installation without requiring
 the maintainer's model catalogue, while allowing users to persist role-specific
 model overrides.
 
@@ -14,8 +14,8 @@ models. Their default is the model selected in the parent Pi session.
 A spawned model resolves in this order:
 
 1. Explicit `subagent({ model })` value.
-2. Trusted project override from `.pi/cmuxagent/config.json`.
-3. Global override from `~/.pi/cmuxagent/config.json`.
+2. Trusted project override from `.pi/rex-pi-agent/config.json`.
+3. Global override from `~/.pi/rex-pi-agent/config.json`.
 4. A profile's explicit `model` value, for custom profiles.
 5. The parent session model.
 
@@ -44,7 +44,7 @@ configuration is read only when Pi trusts the project.
 `/subagent-setup` reads the models available to the active Pi session. It
 prompts once for the save scope, then once per bundled agent. Each prompt
 contains `Inherit parent model` plus the currently available models. It writes
-only cmuxagent configuration; it never changes Pi's global model settings,
+only rex-pi-agent configuration; it never changes Pi's global model settings,
 authentication, or provider catalogue.
 
 ## Validation
